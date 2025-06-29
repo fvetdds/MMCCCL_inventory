@@ -1,15 +1,11 @@
+!pip install openpyxl
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 
-# Ensure openpyxl is installed for Excel I/O
-try:
-    import openpyxl  # noqa: F401
-except ImportError:
-    st.error("The 'openpyxl' package is required to read/write Excel files. Please install it in your environment.")
-
-# Constants
-INVENTORY_FILE = "Inventory.xlsx"
+# File definitions
+EXCEL_FILE = "Inventory.xlsx"
+CSV_FILE = "Inventory.csv"
 EXPIRY_ALERT_DAYS = 30
 DEFAULT_THRESHOLD = 1
 DEFAULT_ORDER_QTY = 1
@@ -17,17 +13,22 @@ DEFAULT_ORDER_QTY = 1
 @st.cache_data(ttl=600)
 def load_inventory():
     """
-    Load inventory from Excel using openpyxl engine, with defaults and computed flags.
+    Attempt to load inventory from Excel; fall back to CSV if openpyxl is missing or Excel not found.
     """
+    df = None
+    # Try Excel first
     try:
-        df = pd.read_excel(INVENTORY_FILE, engine='openpyxl')
-    except FileNotFoundError:
-        df = pd.DataFrame(columns=[
-            "Item Category", "Item Name", "Expiration Date",
-            "Manufacturer", "SKU", "Quantity in Stock",
-            "Reorder Threshold", "Order Quantity"
-        ])
-    # Default columns
+        df = pd.read_excel(EXCEL_FILE, engine='openpyxl')
+    except (ImportError, FileNotFoundError, ValueError):
+        try:
+            df = pd.read_csv(CSV_FILE)
+        except FileNotFoundError:
+            df = pd.DataFrame(columns=[
+                "Item Category", "Item Name", "Expiration Date",
+                "Manufacturer", "SKU", "Quantity in Stock",
+                "Reorder Threshold", "Order Quantity"
+            ])
+    # Ensure required columns
     if 'Quantity in Stock' not in df.columns:
         df['Quantity in Stock'] = 0
     for col, default in [("Reorder Threshold", DEFAULT_THRESHOLD), ("Order Quantity", DEFAULT_ORDER_QTY)]:
@@ -45,22 +46,22 @@ def load_inventory():
 @st.cache_data
 def save_inventory(df: pd.DataFrame):
     """
-    Save inventory to Excel using openpyxl engine, dropping helper columns.
+    Save inventory back to file: try Excel with openpyxl, else CSV.
     """
     df_to_save = df.drop(columns=['Need Reorder'], errors='ignore')
-    df_to_save.to_excel(INVENTORY_FILE, index=False, engine='openpyxl')
+    # Try writing Excel
+    try:
+        df_to_save.to_excel(EXCEL_FILE, index=False, engine='openpyxl')
+    except (ImportError, ValueError):
+        df_to_save.to_csv(CSV_FILE, index=False)
 
 # Load data
 df = load_inventory()
 
 # Sidebar filters
 st.sidebar.title("Filters")
-categories = st.sidebar.multiselect(
-    "Category", options=df['Item Category'].dropna().unique()
-)
-manufacturers = st.sidebar.multiselect(
-    "Manufacturer", options=df['Manufacturer'].dropna().unique()
-)
+categories = st.sidebar.multiselect("Category", options=df['Item Category'].dropna().unique())
+manufacturers = st.sidebar.multiselect("Manufacturer", options=df['Manufacturer'].dropna().unique())
 exp_range = st.sidebar.date_input(
     "Expiration Date Window",
     value=(datetime.today(), datetime.today() + timedelta(days=180))
