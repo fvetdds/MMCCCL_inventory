@@ -12,13 +12,11 @@ DEFAULT_ORDER_QTY = 1
 @st.cache_data(ttl=600)
 def load_inventory():
     """
-    Attempt to load inventory from Excel; fall back to CSV if openpyxl is missing or Excel not found.
+    Attempt to load inventory from Excel; fall back to CSV if Excel unavailable or not found.
     """
-    df = None
-    # Try Excel first
     try:
         df = pd.read_excel(EXCEL_FILE, engine='openpyxl')
-    except (ImportError, FileNotFoundError, ValueError):
+    except Exception:
         try:
             df = pd.read_csv(CSV_FILE)
         except FileNotFoundError:
@@ -45,13 +43,12 @@ def load_inventory():
 @st.cache_data
 def save_inventory(df: pd.DataFrame):
     """
-    Save inventory back to file: try Excel with openpyxl, else CSV.
+    Save inventory to Excel if possible, or fall back to CSV.
     """
     df_to_save = df.drop(columns=['Need Reorder'], errors='ignore')
-    # Try writing Excel
     try:
         df_to_save.to_excel(EXCEL_FILE, index=False, engine='openpyxl')
-    except (ImportError, ValueError):
+    except Exception:
         df_to_save.to_csv(CSV_FILE, index=False)
 
 # Load data
@@ -59,8 +56,12 @@ df = load_inventory()
 
 # Sidebar filters
 st.sidebar.title("Filters")
-categories = st.sidebar.multiselect("Category", options=df['Item Category'].dropna().unique())
-manufacturers = st.sidebar.multiselect("Manufacturer", options=df['Manufacturer'].dropna().unique())
+categories = st.sidebar.multiselect(
+    "Category", options=df['Item Category'].dropna().unique()
+)
+manufacturers = st.sidebar.multiselect(
+    "Manufacturer", options=df['Manufacturer'].dropna().unique()
+)
 exp_range = st.sidebar.date_input(
     "Expiration Date Window",
     value=(datetime.today(), datetime.today() + timedelta(days=180))
@@ -73,10 +74,11 @@ if categories:
 if manufacturers:
     filtered = filtered[filtered['Manufacturer'].isin(manufacturers)]
 start_date, end_date = exp_range
-filtered = filtered[filtered['Expiration Date']].between(
+# Correct date filtering using between
+date_mask = filtered['Expiration Date'].between(
     pd.to_datetime(start_date), pd.to_datetime(end_date)
 )
-filtered = df[filtered]
+filtered = filtered[date_mask]
 
 # Tabs
 tabs = st.tabs(["Overview", "Low Stock Alerts", "Receive Shipment"])
