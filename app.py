@@ -74,19 +74,10 @@ tabs = st.tabs(["Overview", "Low Stock Alerts", "Receive Shipment"])
 # Overview Tab
 with tabs[0]:
     st.header("Overview")
-    total_items = len(filtered)
-    low_stock = int(filtered['Need Reorder'].sum())
-    expiring_soon = int((filtered['Expiration Date'] <= datetime.today() + timedelta(days=EXPIRY_ALERT_DAYS)).sum())
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Items", total_items)
-    c2.metric("Low Stock Items", low_stock)
-    c3.metric(f"Expiring < {EXPIRY_ALERT_DAYS} days", expiring_soon)
-
-    if expiring_soon > 0:
-        st.warning(f"{expiring_soon} item(s) expiring within {EXPIRY_ALERT_DAYS} days.")
-
-    st.dataframe(filtered)
+    # Show Item Name and Quantity for all inventory items
+    overview_df = df[["Item Name", "Quantity in Stock"]]
+    st.subheader("Current Stock Levels")
+    st.dataframe(overview_df)
 
 # Low Stock Alerts Tab
 with tabs[1]:
