@@ -12,7 +12,7 @@ DEFAULT_ORDER_QTY = 1
 @st.cache_data(ttl=600)
 def load_inventory():
     """
-    Attempt to load inventory from Excel; fall back to CSV if Excel unavailable or not found.
+    Load inventory from Excel; fall back to CSV if needed.
     """
     try:
         df = pd.read_excel(EXCEL_FILE, engine='openpyxl')
@@ -25,7 +25,7 @@ def load_inventory():
                 "Manufacturer", "SKU", "Quantity in Stock",
                 "Reorder Threshold", "Order Quantity"
             ])
-    # Ensure required columns
+    # Ensure required columns exist
     if 'Quantity in Stock' not in df.columns:
         df['Quantity in Stock'] = 0
     for col, default in [("Reorder Threshold", DEFAULT_THRESHOLD), ("Order Quantity", DEFAULT_ORDER_QTY)]:
@@ -43,7 +43,7 @@ def load_inventory():
 @st.cache_data
 def save_inventory(df: pd.DataFrame):
     """
-    Save inventory to Excel if possible, or fall back to CSV.
+    Save inventory to Excel or CSV.
     """
     df_to_save = df.drop(columns=['Need Reorder'], errors='ignore')
     try:
@@ -54,33 +54,21 @@ def save_inventory(df: pd.DataFrame):
 # Load data
 df = load_inventory()
 
-# Sidebar filters
+# Sidebar filter: only expiration range
 st.sidebar.title("Filters")
-categories = st.sidebar.multiselect(
-    "Category", options=df['Item Category'].dropna().unique()
-)
-manufacturers = st.sidebar.multiselect(
-    "Manufacturer", options=df['Manufacturer'].dropna().unique()
-)
 exp_range = st.sidebar.date_input(
     "Expiration Date Window",
     value=(datetime.today(), datetime.today() + timedelta(days=180))
 )
 
-# Apply filters
-filtered = df.copy()
-if categories:
-    filtered = filtered[filtered['Item Category'].isin(categories)]
-if manufacturers:
-    filtered = filtered[filtered['Manufacturer'].isin(manufacturers)]
+# Filter by expiration date
 start_date, end_date = exp_range
-# Correct date filtering using between
-date_mask = filtered['Expiration Date'].between(
+mask = df['Expiration Date'].between(
     pd.to_datetime(start_date), pd.to_datetime(end_date)
 )
-filtered = filtered[date_mask]
+filtered = df[mask]
 
-# Tabs
+# Tabs for display
 tabs = st.tabs(["Overview", "Low Stock Alerts", "Receive Shipment"])
 
 # Overview Tab
@@ -112,40 +100,24 @@ with tabs[1]:
 # Receive Shipment Tab
 with tabs[2]:
     st.header("Receive Shipment")
-    sku = st.text_input("Scan or Enter SKU:")
+    # Select existing item names
+    item = st.selectbox("Select Item", options=df['Item Name'].dropna().unique())
     qty = st.number_input("Quantity Received", min_value=1, value=1)
     date_received = st.date_input("Received Date", value=datetime.today())
+
     if st.button("Add to Inventory"):
-        if not sku:
-            st.error("SKU cannot be empty.")
+        if not item:
+            st.error("Please select an item.")
         else:
-            if sku in df['SKU'].astype(str).values:
-                idx = df.index[df['SKU'].astype(str) == sku][0]
+            idx_list = df.index[df['Item Name'] == item].tolist()
+            if idx_list:
+                idx = idx_list[0]
                 df.at[idx, 'Quantity in Stock'] += qty
-                st.success(f"Updated SKU {sku}: +{qty} units.")
+                st.success(f"Updated '{item}': +{qty} units.")
             else:
-                st.info(f"New SKU {sku} — please provide details below.")
-                new_cat = st.text_input("Item Category")
-                new_name = st.text_input("Item Name")
-                new_exp = st.date_input("Expiration Date", value=date_received)
-                new_man = st.text_input("Manufacturer")
-                new_thresh = st.number_input("Reorder Threshold", min_value=1, value=DEFAULT_THRESHOLD)
-                new_order_qty = st.number_input("Order Quantity", min_value=1, value=DEFAULT_ORDER_QTY)
-                if st.button("Confirm Add New Item"):
-                    new_row = pd.DataFrame([{
-                        "Item Category": new_cat,
-                        "Item Name": new_name,
-                        "Expiration Date": new_exp,
-                        "Manufacturer": new_man,
-                        "SKU": sku,
-                        "Quantity in Stock": qty,
-                        "Reorder Threshold": new_thresh,
-                        "Order Quantity": new_order_qty,
-                        "Need Reorder": qty <= new_thresh
-                    }])
-                    df = pd.concat([df, new_row], ignore_index=True)
-                    st.success(f"Added new SKU {sku} with {qty} units.")
-            df['Need Reorder'] = df['Quantity in Stock'] <= df['Reorder Threshold']
-            save_inventory(df)
+                st.error(f"Item '{item}' not found in inventory.")
+        # Recompute and save
+        df['Need Reorder'] = df['Quantity in Stock'] <= df['Reorder Threshold']
+        save_inventory(df)
 
 st.caption("Lab Inventory Dashboard — Streamlit")
