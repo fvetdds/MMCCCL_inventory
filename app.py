@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 # File definitions
-EXCEL_FILE = "Inventory.xlsx"
+EXCEL_FILE = "../data/Inventory.xlsx"
 CSV_FILE = "Inventory.csv"
 EXPIRY_ALERT_DAYS = 30
 DEFAULT_THRESHOLD = 1
