@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 # File definitions
-EXCEL_FILE = "../data/Inventory.xlsx"
+EXCEL_FILE = "/mnt/data/Inventory.xlsx"  # updated path to uploaded file
 CSV_FILE = "Inventory.csv"
 EXPIRY_ALERT_DAYS = 30
 DEFAULT_THRESHOLD = 1
@@ -61,8 +61,14 @@ exp_range = st.sidebar.date_input(
     value=(datetime.today(), datetime.today() + timedelta(days=180))
 )
 
-# Filter by expiration date
-start_date, end_date = exp_range
+# Determine start and end dates robustly
+if isinstance(exp_range, (list, tuple)) and len(exp_range) == 2:
+    start_date, end_date = exp_range  # unpack the two dates
+else:
+    start_date = exp_range           # single date
+    end_date = exp_range
+
+# Filter by expiration date using those dates
 mask = df['Expiration Date'].between(
     pd.to_datetime(start_date), pd.to_datetime(end_date)
 )
