@@ -3,8 +3,8 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 # File definitions
-EXCEL_FILE = "/mnt/data/Inventory.xlsx"  # path to uploaded Excel file
-CSV_FILE = "/mnt/data/Inventory.csv"     # fallback CSV file
+EXCEL_FILE = "data/Inventory.xlsx"  # updated path to uploaded file
+CSV_FILE = "Inventory.csv"
 EXPIRY_ALERT_DAYS = 30
 DEFAULT_THRESHOLD = 1
 DEFAULT_ORDER_QTY = 1
